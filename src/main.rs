@@ -68,80 +68,86 @@ async fn main() {
             let ranges: Vec<(Principal, Principal)> = serde_cbor::from_slice(ranges)
                 .map_err(AgentError::InvalidCborData)
                 .unwrap();
-            println!("ranges: {:?}", ranges.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect::<Vec<_>>());
+            println!(
+                "ranges: {:?}",
+                ranges
+                    .iter()
+                    .map(|(a, b)| (a.to_string(), b.to_string()))
+                    .collect::<Vec<_>>()
+            );
 
-            let mut calls: Vec<Pin<Box<dyn Future<Output = Result<Certificate<'_>, AgentError>>>>> =
-                Vec::new();
-            let mut canss: Vec<(Vec<Principal>, Principal)> = Vec::new();
-            for (from, to) in ranges.iter() {
-                let ecid = to;
-                let mut cur = from.clone();
-                let to = next_principal(to);
-                while cur != to {
-                    let mut cans: Vec<Principal> = Vec::new();
-                    let mut i = 0;
-                    while cur != to && i < batch_size {
-                        cans.push(cur);
-                        cur = next_principal(&cur);
-                        i += 1;
-                    }
-                    let paths: Vec<Vec<Label>> =
-                        cans.iter().map(|c| get_paths(c)).flatten().collect();
-                    let response = agent.read_state_raw(paths, *ecid);
-                    calls.push(Box::pin(response));
-                    canss.push((cans, *ecid));
-                }
-            }
-            let responses: Vec<Result<Certificate<'_>, AgentError>> = join_all(calls).await;
-            for (response, (cans, ecid)) in responses.iter().zip(canss.iter()) {
-                match response.as_ref() {
-                    Err(e) => {
-                        println!("{:?}", e);
-                    }
-                    Ok(response) => {
-                        agent.verify(&response, *ecid).unwrap();
-                        for c in cans.iter() {
-                            match lookup_value(&response, get_path(c, "controllers")) {
-                                Ok(ctrls) => {
-                                    let cbor: Value = serde_cbor::from_slice(ctrls).unwrap();
-                                    let ctrls = match cbor {
-                                        Value::Array(vec) => vec
-                                            .into_iter()
-                                            .map(|elem: Value| match elem {
-                                                Value::Bytes(bytes) => {
-                                                    Principal::try_from(&bytes).unwrap().to_text()
-                                                }
-                                                _ => {
-                                                    println!("Could not parse controllers!");
-                                                    "".to_string()
-                                                }
-                                            })
-                                            .collect::<Vec<String>>(),
-                                        _ => {
-                                            println!("Could not parse controllers!");
-                                            Vec::new()
-                                        }
-                                    };
-                                    let hash =
-                                        match lookup_value(&response, get_path(c, "module_hash")) {
-                                            Ok(hash) => {
-                                                format!("0x{}", hex::encode(&hash))
-                                            }
-                                            Err(_) => "empty".to_string(),
-                                        };
-                                    println!(
-                                        "{}:\nControllers: {:?}\nModule hash: {}\n",
-                                        c.to_text(),
-                                        ctrls,
-                                        hash
-                                    );
-                                }
-                                Err(_) => {}
-                            }
-                        }
-                    }
-                }
-            }
+            // let mut calls: Vec<Pin<Box<dyn Future<Output = Result<Certificate<'_>, AgentError>>>>> =
+            //     Vec::new();
+            // let mut canss: Vec<(Vec<Principal>, Principal)> = Vec::new();
+            // for (from, to) in ranges.iter() {
+            //     let ecid = to;
+            //     let mut cur = from.clone();
+            //     let to = next_principal(to);
+            //     while cur != to {
+            //         let mut cans: Vec<Principal> = Vec::new();
+            //         let mut i = 0;
+            //         while cur != to && i < batch_size {
+            //             cans.push(cur);
+            //             cur = next_principal(&cur);
+            //             i += 1;
+            //         }
+            //         let paths: Vec<Vec<Label>> =
+            //             cans.iter().map(|c| get_paths(c)).flatten().collect();
+            //         let response = agent.read_state_raw(paths, *ecid);
+            //         calls.push(Box::pin(response));
+            //         canss.push((cans, *ecid));
+            //     }
+            // }
+            // let responses: Vec<Result<Certificate<'_>, AgentError>> = join_all(calls).await;
+            // for (response, (cans, ecid)) in responses.iter().zip(canss.iter()) {
+            //     match response.as_ref() {
+            //         Err(e) => {
+            //             println!("{:?}", e);
+            //         }
+            //         Ok(response) => {
+            //             agent.verify(&response, *ecid).unwrap();
+            //             for c in cans.iter() {
+            //                 match lookup_value(&response, get_path(c, "controllers")) {
+            //                     Ok(ctrls) => {
+            //                         let cbor: Value = serde_cbor::from_slice(ctrls).unwrap();
+            //                         let ctrls = match cbor {
+            //                             Value::Array(vec) => vec
+            //                                 .into_iter()
+            //                                 .map(|elem: Value| match elem {
+            //                                     Value::Bytes(bytes) => {
+            //                                         Principal::try_from(&bytes).unwrap().to_text()
+            //                                     }
+            //                                     _ => {
+            //                                         println!("Could not parse controllers!");
+            //                                         "".to_string()
+            //                                     }
+            //                                 })
+            //                                 .collect::<Vec<String>>(),
+            //                             _ => {
+            //                                 println!("Could not parse controllers!");
+            //                                 Vec::new()
+            //                             }
+            //                         };
+            //                         let hash =
+            //                             match lookup_value(&response, get_path(c, "module_hash")) {
+            //                                 Ok(hash) => {
+            //                                     format!("0x{}", hex::encode(&hash))
+            //                                 }
+            //                                 Err(_) => "empty".to_string(),
+            //                             };
+            //                         println!(
+            //                             "{}:\nControllers: {:?}\nModule hash: {}\n",
+            //                             c.to_text(),
+            //                             ctrls,
+            //                             hash
+            //                         );
+            //                     }
+            //                     Err(_) => {}
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
         }
     }
 }
